@@ -4,126 +4,126 @@ import sqlite3
 from datetime import datetime, timedelta
 import urllib.parse
 
-# --- 1. LOGIKA DOSIS MEDIS (FDC) ---
-def hitung_dosis_fdc(kategori, bb):
+# --- 1. LOGIKA DOSIS KLINIS (FDC) ---
+def hitung_dosis(kategori, bb):
     if kategori == "Dewasa":
-        if bb < 30: return "Konsultasi Spesialis (BB < 30kg)"
-        elif 30 <= bb <= 37: return "2 Tablet FDC Dewasa"
-        elif 38 <= bb <= 54: return "3 Tablet FDC Dewasa"
-        elif 55 <= bb <= 70: return "4 Tablet FDC Dewasa"
-        else: return "5 Tablet FDC Dewasa"
-    else: # Anak
-        if bb < 5: return "Konsultasi Spesialis (BB < 5kg)"
-        elif 5 <= bb <= 7: return "1 Tablet FDC Anak"
-        elif 8 <= bb <= 11: return "2 Tablet FDC Anak"
-        elif 12 <= bb <= 16: return "3 Tablet FDC Anak"
-        elif 17 <= bb <= 22: return "4 Tablet FDC Anak"
-        elif 23 <= bb <= 30: return "5 Tablet FDC Anak"
-        else: return "Gunakan Dosis Dewasa (BB > 30kg)"
+        if bb < 30: return "Konsultasi Spesialis (BB < 30kg)", 0
+        elif 30 <= bb <= 37: return "2 Tablet FDC Dewasa", 2
+        elif 38 <= bb <= 54: return "3 Tablet FDC Dewasa", 3
+        elif 55 <= bb <= 70: return "4 Tablet FDC Dewasa", 4
+        else: return "5 Tablet FDC Dewasa", 5
+    else:  # Kategori Anak
+        if bb < 5: return "Konsultasi Spesialis (BB < 5kg)", 0
+        elif 5 <= bb <= 7: return "1 Tablet FDC Anak", 1
+        elif 8 <= bb <= 11: return "2 Tablet FDC Anak", 2
+        elif 12 <= bb <= 16: return "3 Tablet FDC Anak", 3
+        elif 17 <= bb <= 22: return "4 Tablet FDC Anak", 4
+        elif 23 <= bb <= 30: return "5 Tablet FDC Anak", 5
+        else: return "Gunakan Dosis Dewasa (BB > 30kg)", 0
 
-# --- 2. DATABASE SETUP ---
+# --- 2. KONFIGURASI DATABASE ---
 def init_db():
-    conn = sqlite3.connect('hantam_tbc_pro.db')
+    conn = sqlite3.connect('hantam_tbc.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS pasien (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nama TEXT, usia INTEGER, bb INTEGER, kategori TEXT,
-                    no_wa TEXT, tgl_kunjungan TEXT, bulan_ke INTEGER, 
-                    sisa_obat INTEGER, dosis TEXT, keluhan TEXT, 
-                    medis TEXT, tgl_kembali TEXT, tgl_homecare TEXT)''')
+                    nama TEXT, usia INTEGER, bb INTEGER, 
+                    nik TEXT, no_wa TEXT, tgl_kunjungan TEXT, 
+                    bulan_ke INTEGER, sisa_obat INTEGER, 
+                    dosis_harian TEXT, jml_obat_pulang INTEGER,
+                    keluhan TEXT, status_medis TEXT, 
+                    tgl_kembali TEXT, tgl_homecare TEXT)''')
     conn.commit()
     return conn
 
-# --- 3. UI/UX CONFIGURATION ---
+# --- 3. UI/UX "HANTAM TBC" ---
 st.set_page_config(page_title="HANTAM TBC", page_icon="🥊", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: white; }
-    .stButton>button { width: 100%; border-radius: 12px; height: 3em; background-color: #FF4B4B; color: white; font-weight: bold; border: none; transition: 0.3s; }
-    .stButton>button:hover { background-color: #ff3333; transform: scale(1.02); }
-    .css-1r6slb0 { padding: 2rem; border-radius: 20px; background: #1e1e1e; border: 1px solid #333; }
+    .stButton>button { width: 100%; border-radius: 12px; background: linear-gradient(45deg, #FF4B2B, #FF416C); color: white; font-weight: bold; border: none; height: 3em; transition: 0.3s; }
+    .stButton>button:hover { transform: scale(1.02); box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4); }
+    .stTextInput>div>div>input, .stNumberInput>div>div>input { border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. MAIN APP ---
 st.title("🥊 HANTAM TBC")
-st.write("Sistem Monitoring & Keputusan Klinis Puskesmas Tirta Jaya")
+st.write("### Puskesmas Tirta Jaya | Smart Monitoring & Automatic Dosage")
+st.markdown("---")
 
-menu = ["Input Kunjungan", "Dashboard & Tracking", "Jadwal Homecare"]
-choice = st.sidebar.selectbox("Menu Utama", menu)
+menu = ["➕ Input Pasien & Obat", "🔍 Database & Tracking", "🏠 Jadwal Homecare AI"]
+choice = st.sidebar.selectbox("Menu", menu)
 
-if choice == "Input Kunjungan":
-    st.markdown("### 📝 Form Pemeriksaan & Dosis")
+if choice == "➕ Input Pasien & Obat":
+    st.subheader("Data Kunjungan Pasien")
     
     with st.form("form_hantam", clear_on_submit=True):
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
-            nama = st.text_input("Nama Lengkap Pasien", placeholder="Nama Pasien")
-            no_wa = st.text_input("Nomor WhatsApp (628...)", placeholder="62812...")
+            nama = st.text_input("Nama Lengkap")
+            nik = st.text_input("NIK / No RM")
+            no_wa = st.text_input("Nomor WhatsApp (628...)", help="Awali dengan 62")
         with col2:
             usia = st.number_input("Usia (Tahun)", min_value=0, max_value=120)
-            kategori = "Anak" if usia < 15 else "Dewasa"
-            st.info(f"Kategori: {kategori}")
+            bb = st.number_input("Berat Badan (kg)", min_value=0)
         with col3:
-            bb = st.number_input("Berat Badan (kg)", min_value=1)
-        
+            kategori = "Anak" if usia < 15 else "Dewasa"
+            st.info(f"Kategori: **{kategori}**")
+            interval = st.selectbox("Interval Kembali", ["1 Bulan", "2 Minggu"])
+
         st.markdown("---")
         
-        col4, col5 = st.columns(2)
-        with col4:
-            bulan_ke = st.slider("Pengobatan Bulan Ke-", 1, 12)
-            sisa_obat = st.number_input("Sisa Obat Sebelumnya (Butir)", 0)
+        col_med1, col_med2 = st.columns(2)
+        with col_med1:
+            bulan_ke = st.number_input("Obat Bulan Ke-", 1, 12)
+            sisa_obat = st.number_input("Sisa Obat (Butir)", 0)
             medis = st.multiselect("Pemeriksaan", ["Cek HIV", "Cek GDS", "Rujukan Keluar"])
         
-        with col5:
-            interval = st.radio("Jadwal Kontrol Berikutnya", ["1 Bulan", "2 Minggu"], horizontal=True)
-            keluhan = st.text_area("Keluhan & Efek Samping", placeholder="Input keluhan jika ada...")
+        with col_med2:
+            # Hitung Dosis Otomatis
+            dosis_teks, jml_tab = hitung_dosis(kategori, bb)
+            st.warning(f"**Rekomendasi Dosis:** {dosis_teks}")
+            
+            # Hitung Jumlah Obat Dibawa Pulang
+            hari = 30 if interval == "1 Bulan" else 14
+            obat_pulang = jml_tab * hari
+            st.success(f"**Obat Dibawa Pulang:** {obat_pulang} Biji")
+            
+            keluhan = st.text_area("Input Keluhan/Efek Samping")
 
-        # Kalkulasi Otomatis
-        dosis_final = hitung_dosis_fdc(kategori, bb)
-        tgl_k = (datetime.now() + timedelta(days=30 if interval == "1 Bulan" else 14)).strftime("%d-%m-%Y")
-        tgl_h = (datetime.now() + timedelta(days=15)).strftime("%d-%m-%Y")
+        # Kalkulasi Tanggal
+        tgl_kembali = (datetime.now() + timedelta(days=hari)).strftime("%d-%m-%Y")
+        tgl_homecare = (datetime.now() + timedelta(days=15)).strftime("%d-%m-%Y")
 
-        st.warning(f"💡 **Rekomendasi Dosis FDC:** {dosis_final}")
-
-        if st.form_submit_button("SIMPAN DATA & CETAK DOSIS"):
+        if st.form_submit_button("SIMPAN DATA & CETAK JADWAL"):
             conn = init_db()
             c = conn.cursor()
-            c.execute('''INSERT INTO pasien (nama, usia, bb, kategori, no_wa, tgl_kunjungan, bulan_ke, sisa_obat, dosis, keluhan, medis, tgl_kembali, tgl_homecare)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
-                      (nama, usia, bb, kategori, no_wa, datetime.now().strftime("%d-%m-%Y"), bulan_ke, sisa_obat, dosis_final, keluhan, ", ".join(medis), tgl_k, tgl_h))
+            c.execute('''INSERT INTO pasien (nama, usia, bb, nik, no_wa, tgl_kunjungan, bulan_ke, sisa_obat, dosis_harian, jml_obat_pulang, keluhan, status_medis, tgl_kembali, tgl_homecare) 
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                      (nama, usia, bb, nik, no_wa, datetime.now().strftime("%d-%m-%Y"), bulan_ke, sisa_obat, dosis_teks, obat_pulang, keluhan, ", ".join(medis), tgl_kembali, tgl_homecare))
             conn.commit()
             
-            st.success(f"✅ Data {nama} Berhasil Disimpan!")
+            st.balloons()
+            st.success(f"Berhasil disimpan! Jadwal kembali: {tgl_kembali}")
             
-            # WhatsApp Trigger
-            pesan = f"Halo {nama}, kunjungan TBC Anda sudah tercatat.\n\n*Kategori:* {kategori}\n*Dosis:* {dosis_final}\n*Kontrol Kembali:* {tgl_k}\n\nTetap semangat minum obat!"
-            wa_url = f"https://wa.me/{no_wa}?text={urllib.parse.quote(pesan)}"
-            st.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color:#25D366; border-radius:10px; width:100%; border:none; height:40px; color:white;">📲 Kirim Pengingat WA ke Pasien</button></a>', unsafe_allow_html=True)
+            # WA Pengingat
+            pesan = f"Halo {nama}, pengobatan TBC bulan ke-{bulan_ke} sudah tercatat di Puskesmas Tirta Jaya. Dosis Anda: {dosis_teks}. Obat dibawa pulang: {obat_pulang} biji. Jadwal kembali: *{tgl_kembali}*."
+            wa_link = f"https://wa.me/{no_wa}?text={urllib.parse.quote(pesan)}"
+            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366; width:100%; color:white; border-radius:10px; border:none; padding:10px;">📲 KIRIM PENGINGAT WA SEKARANG</button></a>', unsafe_allow_html=True)
 
-elif choice == "Dashboard & Tracking":
-    st.markdown("### 📊 Database Pasien & Tracking Obat")
+elif choice == "🔍 Database & Tracking":
+    st.subheader("Monitoring Data Pasien (SQLite)")
     conn = init_db()
     df = pd.read_sql_query("SELECT * FROM pasien", conn)
+    st.dataframe(df, use_container_width=True)
     
-    if not df.empty:
-        # Menampilkan tabel dengan gaya modern
-        st.dataframe(df, use_container_width=True)
-        
-        # Fitur Download untuk laporan Kepala Program
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export ke Excel/CSV", data=csv, file_name=f"HantamTBC_{datetime.now().date()}.csv", mime="text/csv")
-    else:
-        st.info("Belum ada data pasien.")
+    # Download CSV sebagai backup ke Excel
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("💾 Export Database ke Excel/CSV", csv, "data_hantam_tbc.csv", "text/csv")
 
-elif choice == "Jadwal Homecare":
-    st.markdown("### 🏠 Jadwal Kunjungan Rumah Otomatis")
+elif choice == "🏠 Jadwal Homecare AI":
+    st.subheader("Jadwal Kunjungan Rumah Otomatis")
     conn = init_db()
-    df = pd.read_sql_query("SELECT nama, tgl_homecare, no_wa, keluhan FROM pasien", conn)
-    if not df.empty:
-        for idx, row in df.iterrows():
-            with st.expander(f"📍 {row['nama']} - Jadwal: {row['tgl_homecare']}"):
-                st.write(f"Catatan Terakhir: {row['keluhan']}")
-                msg_hc = f"https://wa.me/{row['no_wa']}?text=Halo {row['nama']}, petugas Puskesmas Tirta Jaya akan melakukan kunjungan rumah pada {row['tgl_homecare']}."
-                st.markdown(f"[📲 Kirim Notifikasi Kunjungan]({msg_hc})")
+    df = pd.read_sql_query("SELECT nama, no_wa, tgl_homecare, dosis_harian FROM pasien", conn)
+    st.table(df)
