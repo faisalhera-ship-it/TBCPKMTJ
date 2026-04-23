@@ -98,4 +98,32 @@ if choice == "Input Kunjungan":
             st.success(f"✅ Data {nama} Berhasil Disimpan!")
             
             # WhatsApp Trigger
-            pesan = f"Halo {nama}, kunj
+            pesan = f"Halo {nama}, kunjungan TBC Anda sudah tercatat.\n\n*Kategori:* {kategori}\n*Dosis:* {dosis_final}\n*Kontrol Kembali:* {tgl_k}\n\nTetap semangat minum obat!"
+            wa_url = f"https://wa.me/{no_wa}?text={urllib.parse.quote(pesan)}"
+            st.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color:#25D366; border-radius:10px; width:100%; border:none; height:40px; color:white;">📲 Kirim Pengingat WA ke Pasien</button></a>', unsafe_allow_html=True)
+
+elif choice == "Dashboard & Tracking":
+    st.markdown("### 📊 Database Pasien & Tracking Obat")
+    conn = init_db()
+    df = pd.read_sql_query("SELECT * FROM pasien", conn)
+    
+    if not df.empty:
+        # Menampilkan tabel dengan gaya modern
+        st.dataframe(df, use_container_width=True)
+        
+        # Fitur Download untuk laporan Kepala Program
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export ke Excel/CSV", data=csv, file_name=f"HantamTBC_{datetime.now().date()}.csv", mime="text/csv")
+    else:
+        st.info("Belum ada data pasien.")
+
+elif choice == "Jadwal Homecare":
+    st.markdown("### 🏠 Jadwal Kunjungan Rumah Otomatis")
+    conn = init_db()
+    df = pd.read_sql_query("SELECT nama, tgl_homecare, no_wa, keluhan FROM pasien", conn)
+    if not df.empty:
+        for idx, row in df.iterrows():
+            with st.expander(f"📍 {row['nama']} - Jadwal: {row['tgl_homecare']}"):
+                st.write(f"Catatan Terakhir: {row['keluhan']}")
+                msg_hc = f"https://wa.me/{row['no_wa']}?text=Halo {row['nama']}, petugas Puskesmas Tirta Jaya akan melakukan kunjungan rumah pada {row['tgl_homecare']}."
+                st.markdown(f"[📲 Kirim Notifikasi Kunjungan]({msg_hc})")
